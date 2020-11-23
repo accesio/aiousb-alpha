@@ -624,7 +624,6 @@ static int ioctl_ACCESIO_USB_CONTROL_XFER (struct accesio_usb_device_info *dev, 
     int bytes_remaining = 0;
     unsigned int pipe;
 
-
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 0, 0))
     if (!access_ok(context->data, context->size))
 #else
@@ -645,7 +644,7 @@ static int ioctl_ACCESIO_USB_CONTROL_XFER (struct accesio_usb_device_info *dev, 
         aio_driver_err_print("copy_from_user returned %d\n", bytes_remaining);
     }
 
-    aio_driver_dev_print("Calling contrl_msg");
+    aio_driver_dev_print("Calling control_msg");
 
     if (context->read)
     {
@@ -667,7 +666,7 @@ static int ioctl_ACCESIO_USB_CONTROL_XFER (struct accesio_usb_device_info *dev, 
                               1000);
     if (status < 0)
     {
-        aio_driver_err_print("usb_ctrol_msg returned %d", status);
+        aio_driver_err_print("usb_control_msg returned %d", status);
     }
 
     if (context->read)
@@ -686,7 +685,7 @@ static int ioctl_ACCESIO_USB_CONTROL_XFER (struct accesio_usb_device_info *dev, 
 void accesio_urb_complete(struct urb *urb)
 {
     struct completion *completion = (struct completion *)urb->context;
-    aio_driver_dev_print("Reached competion callback");
+    aio_driver_dev_print("Reached completion callback");
     complete(completion);
 }
 
@@ -715,7 +714,7 @@ static int ioctl_ACCESIO_USB_BULK_XFER (struct accesio_usb_device_info *dev, uns
     dma_capable_buffer = usb_alloc_coherent (dev->udev, context->size, GFP_KERNEL, &dev->urb->transfer_dma);
     bytes_remaining = copy_from_user(dma_capable_buffer, context->data, context->size);
 
-    if ( 0 != bytes_remaining )
+    //if ( 0 != bytes_remaining )
     {
         aio_driver_err_print("copy_from_user returned %d", bytes_remaining);
     }
@@ -731,7 +730,7 @@ static int ioctl_ACCESIO_USB_BULK_XFER (struct accesio_usb_device_info *dev, uns
         pipe = usb_sndbulkpipe(dev->udev, endpoint);
     }
 
-    aio_driver_dev_print("filling urb");
+    aio_driver_dev_print("filling urb, endpoint = %d, pipe = %d", endpoint, pipe);
 
     usb_fill_bulk_urb(dev->urb,
                     dev->udev,
@@ -750,12 +749,12 @@ static int ioctl_ACCESIO_USB_BULK_XFER (struct accesio_usb_device_info *dev, uns
         goto ERR_OUT;
     }
 
+    aio_driver_dev_print("urb submitted");
 
-        wait_for_completion(&dev->urb_completion);
+    wait_for_completion(&dev->urb_completion);
 
-
-        status = dev->urb->status;
-        aio_driver_dev_print("urb status = %d", status);
+    status = dev->urb->status;
+    aio_driver_dev_print("urb status = %d", status);
 
     if (context->read && !status )
     {
@@ -765,8 +764,9 @@ static int ioctl_ACCESIO_USB_BULK_XFER (struct accesio_usb_device_info *dev, uns
         {
             aio_driver_err_print("copy_to_user returned %d", bytes_remaining);
         }
-        put_user(dev->urb->actual_length, context->transferred);
+
     }
+    put_user(dev->urb->actual_length, context->transferred);
 
 ERR_OUT:
 

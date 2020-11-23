@@ -97,8 +97,8 @@ int aiousb_dio_stream_close(aiousb_device_handle device);
 int aiousb_dio_stream_set_clocks(aiousb_device_handle device, double *read_hz,
                 double *write_hz);
 
-int aiousb_dio_stream_frame (aiousb_device_handle device, unsigned long frame_points,
-                unsigned short *frame_data, size_t *bytes_transferred);
+int aiousb_dio_stream_frame (aiousb_device_handle device, uint32_t frame_points,
+                uint16_t *frame_data, uint32_t *bytes_transferred);
 
 int aiousb_ctr_8254_mode(aiousb_device_handle device, uint32_t block_index,
                 uint32_t counter_index, uint32_t mode);
@@ -232,7 +232,7 @@ int aiousb_dio_stream_set_clocks(unsigned long device_index, double *read_hz,
                 double *write_hz);
 
 int aiousb_dio_stream_frame (unsigned long device_index, unsigned long frame_points,
-                unsigned short *frame_data, size_t *bytes_transferred);
+                unsigned short *frame_data, uint32_t *bytes_transferred);
 
 int aiousb_ctr_8254_mode(unsigned long device_index, uint32_t block_index,
                 uint32_t counter_index, uint32_t mode);

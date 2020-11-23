@@ -344,7 +344,7 @@ int aiousb_device_open (const char *fname, aiousb_device_handle *device)
       ptr->pnp_data.pnp_size = 0;
     }
 
-  ptr->streaming_block_size = 31 * 1024;
+  ptr->streaming_block_size = 4 * 1024;
 
   if ( 0 == ptr->descriptor.imm_adc_post_scale)
       ptr->descriptor.imm_adc_post_scale = 1.0;
@@ -593,6 +593,13 @@ int aiousb_generic_bulk_out (aiousb_device_handle device, unsigned int pipe_inde
 
   printf("WARNING: bulk_out hasn't been proven to work yet\n");
 
+  aiousb_debug_print("pipe_index = %d", pipe_index);
+  aiousb_debug_print("data = %p", data);
+  aiousb_debug_print("size = %d", size);
+  aiousb_debug_print("transferred = %p", transferred);
+
+
+
   context.pipe_index = pipe_index;
   context.data = data;
   context.size = size;
@@ -600,6 +607,8 @@ int aiousb_generic_bulk_out (aiousb_device_handle device, unsigned int pipe_inde
   context.read = 0;
 
   status = ioctl(device->fd, ACCESIO_USB_BULK_XFER, &context);
+
+  aiousb_debug_print("*transferred = %d", *transferred);
 
   printf("%s: status = %d\n", __FUNCTION__, status);
 
@@ -1205,11 +1214,11 @@ int aiousb_dio_stream_open(aiousb_device_handle device, uint32_t is_read)
 
   if (is_read)
     {
-      status = aiousb_generic_vendor_write(device, 0xbc, 0, 0, 0, NULL);
+      status = aiousb_generic_vendor_write(device, 0xbc, 0, 0, 0, nullptr);
     }
   else
     {
-      status = aiousb_generic_vendor_write(device, 0xbb, 0, 0, 0, NULL);
+      status = aiousb_generic_vendor_write(device, 0xbb, 0, 0, 0, nullptr);
     }
 
   if (!status)
@@ -1297,12 +1306,16 @@ int aiousb_dio_stream_set_clocks(aiousb_device_handle device, double *read_hz,
     }
 
   clock_data.disables = 0;
-  clock_data.disables |= 0x1;
-  clock_data.disables |= 0x2;
+  if (*write_hz == 0.) clock_data.disables |= 0x1;
+  if (*read_hz == 0) clock_data.disables |= 0x2;
   clock_data.write_oct_dac = oct_dac_from_freq(write_hz);
   clock_data.read_oct_dac = oct_dac_from_freq(read_hz);
 
-  status = aiousb_generic_vendor_read(device,
+  aiousb_debug_print("disables = 0x%x", clock_data.disables);
+  aiousb_debug_print("write_oct_dac = 0x%x", clock_data.write_oct_dac);
+  aiousb_debug_print("read_oct_dac = 0x%x", clock_data.read_oct_dac);
+
+  status = aiousb_generic_vendor_write(device,
                                   AUR_DIO_SETCLOCKS,
                                   0,
                                   0,
@@ -1319,8 +1332,8 @@ int aiousb_dio_stream_set_clocks(aiousb_device_handle device, double *read_hz,
 
 //TODO: Untested. This needs to be tested before exposing to customers.
 //TODO: figure out the right data type for frame_data
-int aiousb_dio_stream_frame (aiousb_device_handle device, unsigned long frame_points,
-                unsigned short *frame_data, size_t *bytes_transferred)
+int aiousb_dio_stream_frame (aiousb_device_handle device, uint32_t frame_points,
+                uint16_t *frame_data, uint32_t *bytes_transferred)
 {
   int (*fptr)(aiousb_device_handle, unsigned int, void *, int, int*);
   unsigned int pipe_index;
@@ -1346,12 +1359,12 @@ int aiousb_dio_stream_frame (aiousb_device_handle device, unsigned long frame_po
 
   if (device->b_dio_read == 1)
     {
-      pipe_index = 0x86;
+      pipe_index = 0;
       fptr = &aiousb_generic_bulk_in;
     }
   else
     {
-      pipe_index = 0x02;
+      pipe_index = 0;
       fptr = &aiousb_generic_bulk_out;
     }
 
@@ -1362,7 +1375,7 @@ int aiousb_dio_stream_frame (aiousb_device_handle device, unsigned long frame_po
       status = (*fptr)(device,
               pipe_index,
               frame_data + *bytes_transferred,
-              frame_points > device->streaming_block_size ? device->streaming_block_size : frame_points,
+              (frame_points > device->streaming_block_size ? device->streaming_block_size : frame_points) * 2,
               &this_transfer);
 
       if ((status < 0) || ( 0 == this_transfer))
@@ -1371,9 +1384,10 @@ int aiousb_dio_stream_frame (aiousb_device_handle device, unsigned long frame_po
           break;
         }
 
-      frame_points = frame_points - this_transfer;
-      bytes_transferred += this_transfer;
+      frame_points = frame_points - this_transfer / 2;
+      *bytes_transferred += this_transfer;
     }while (frame_points > 0);
+
 
     return status;
 
@@ -3168,7 +3182,7 @@ int aiousb_dio_stream_set_clocks(unsigned long device_index, double *read_hz,
 }
 
 int aiousb_dio_stream_frame (unsigned long device_index, unsigned long frame_points,
-                unsigned short *frame_data, size_t *bytes_transferred)
+                unsigned short *frame_data, uint32_t *bytes_transferred)
 {
   return aiousb_dio_stream_frame (aiousb_handle_by_index_private(device_index),
                 frame_points,
