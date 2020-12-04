@@ -5,7 +5,7 @@
 #include "adc-threads.h"
 
 #define aiousb_library_err_print(fmt, ...) \
-  do { printf( "%s:%d:%s(): " fmt "\n", __FILE__, __LINE__, __FUNCTION__, \
+  do { if (AIOUSB_DEBUG) printf( "%s:%d:%s(): " fmt "\n", __FILE__, __LINE__, __FUNCTION__, \
       ##__VA_ARGS__); } while (0);
 
 #define aiousb_debug_print(fmt, ...) \

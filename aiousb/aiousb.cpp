@@ -591,7 +591,7 @@ int aiousb_generic_bulk_out (aiousb_device_handle device, unsigned int pipe_inde
 
   aiousb_debug_print("Enter");
 
-  printf("WARNING: bulk_out hasn't been proven to work yet\n");
+  //printf("WARNING: bulk_out hasn't been proven to work yet\n");
 
   context.pipe_index = pipe_index;
   context.data = data;
@@ -601,7 +601,7 @@ int aiousb_generic_bulk_out (aiousb_device_handle device, unsigned int pipe_inde
 
   status = ioctl(device->fd, ACCESIO_USB_BULK_XFER, &context);
 
-  printf("%s: status = %d\n", __FUNCTION__, status);
+  //printf("%s: status = %d\n", __FUNCTION__, status);
 
   return status;
 }
