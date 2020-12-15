@@ -25,6 +25,7 @@
 
 #define ACCESIO_MAJOR  160
 #define ACCESIO_USB_BUF_SZ 64
+#define DMA_BULK_BUFFER_SZ 64 *1024
 
 
 
@@ -562,6 +563,7 @@ static void accesio_usb_delete(struct kref* kobj)
     accesio_usb_free_endpoint_info(dev->bulk_in);
     accesio_usb_free_endpoint_info(dev->bulk_out);
     usb_put_dev(dev->udev);
+    kfree(dev->dma_capable_buffer);
     kfree(dev);
 }
 
@@ -713,7 +715,6 @@ static int ioctl_ACCESIO_USB_BULK_XFER (struct accesio_usb_device_info *dev, uns
 
     aio_driver_dev_print("passed access_ok");
 
-    dev->dma_capable_buffer = kmalloc( context->size,  GFP_KERNEL | GFP_DMA);
     bytes_remaining = copy_from_user(dev->dma_capable_buffer, context->data, context->size);
 
     if ( 0 != bytes_remaining )
@@ -770,9 +771,6 @@ static int ioctl_ACCESIO_USB_BULK_XFER (struct accesio_usb_device_info *dev, uns
     }
 
 ERR_OUT:
-
-    kfree(dev->dma_capable_buffer);
-    dev->dma_capable_buffer = NULL;
 
     return status;
 
@@ -900,6 +898,7 @@ static int accesio_usb_probe(struct usb_interface* interface, const struct usb_d
         dev->urb = usb_alloc_urb(0, GFP_KERNEL);
         init_completion(&dev->urb_completion);
         loaded_count++;
+        dev->dma_capable_buffer = kmalloc (DMA_BULK_BUFFER_SZ, GFP_KERNEL | GFP_DMA);
 
         aio_driver_dev_print("dev = %p", dev);
 
