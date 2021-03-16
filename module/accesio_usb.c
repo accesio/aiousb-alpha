@@ -624,7 +624,6 @@ static int ioctl_ACCESIO_USB_CONTROL_XFER (struct accesio_usb_device_info *dev, 
 {
     struct accesio_usb_control_transfer *context = (struct accesio_usb_control_transfer *) arg;
     int status = 0;
-    void *dma_capable_buffer = NULL; //TODO: Maybe put in device structure to avoid allocation every transfer
     int bytes_remaining = 0;
     unsigned int pipe;
 
@@ -641,8 +640,7 @@ static int ioctl_ACCESIO_USB_CONTROL_XFER (struct accesio_usb_device_info *dev, 
 
     aio_driver_dev_print("passed access_ok");
 
-    dma_capable_buffer = kmalloc(context->size, GFP_DMA);
-    bytes_remaining = copy_from_user(dma_capable_buffer, context->data, context->size);
+    bytes_remaining = copy_from_user(dev->dma_capable_buffer, context->data, context->size);
 
     if (bytes_remaining)
     {
@@ -666,7 +664,7 @@ static int ioctl_ACCESIO_USB_CONTROL_XFER (struct accesio_usb_device_info *dev, 
                               (context->read ? USB_DIR_IN : USB_DIR_OUT) | USB_TYPE_VENDOR,
                               context->value,
                               context->index,
-                              dma_capable_buffer,
+                              dev->dma_capable_buffer,
                               context->size,
                               1000);
     if (status < 0)
@@ -676,7 +674,7 @@ static int ioctl_ACCESIO_USB_CONTROL_XFER (struct accesio_usb_device_info *dev, 
 
     if (context->read)
     {
-        bytes_remaining = copy_to_user(context->data, dma_capable_buffer, context->size);
+        bytes_remaining = copy_to_user(context->data, dev->dma_capable_buffer, context->size);
 
             if (bytes_remaining)
             {
