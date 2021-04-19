@@ -672,7 +672,7 @@ static int ioctl_ACCESIO_USB_CONTROL_XFER (struct accesio_usb_device_info *dev, 
         aio_driver_err_print("usb_ctrol_msg returned %d", status);
     }
 
-    if (context->read)
+    if ( (status >= 0) && (context->read))
     {
         bytes_remaining = copy_to_user(context->data, dev->dma_capable_buffer, context->size);
 
