@@ -14,6 +14,7 @@
 #include <dirent.h>
 #include <libudev.h>
 
+#include <fstream>
 
 #include "aiousb.h"
 #include "accesio_usb_ioctl.h"
@@ -2998,6 +2999,333 @@ int ADC_Range1(aiousb_device_handle device, uint32_t adc_channel,
   free(config_buff);
 
   return status;
+}
+
+class SetCalWorker
+{
+  public:
+    //CalFileName and OutFileName need to be valid for the life of the object.
+    SetCalWorker(aiousb_device_handle Device, char *CalFileName, char *OutFileName)
+    {
+      mDevice = Device;
+      mCalFileName = CalFileName;
+      mShouldAppend = false;
+    }
+
+    int SetCal();
+
+
+  private:
+    aiousb_device_handle mDevice;
+    char *mCalFileName;
+    char *mOutFileName;
+    std::array<uint16_t, 0x10000> mCalTable;
+    bool mShouldAppend;
+
+    double  LoRefRef = 0 * 6553.6;
+    double  HiRefRef = 9.9339 * 6553.6;
+
+    int LoadCalTable();
+    int WriteCalToFile();
+    uint16_t GetHiRef();
+    double ConfigureAndBulkAcquire(std::vector<uint8_t> Config);
+
+
+};
+// Delphi code for determining ChunkSize.
+// For now we'll just assume the lower speed until I figure out how to get the
+// host controller speed in Linux
+//       //Determine packetization and buffering for DoLoadCalTable.
+//       if CheckUSBSpeed(DeviceIndex) = usHigh then
+//         PacketWords := $200 div 2
+//       else
+//         PacketWords := $40 div 2
+//       ;
+//       PacketsMask := $FFFFFFFF * PacketWords;
+//       ChunkSize := PacketWords * 4;
+int SetCalWorker::LoadCalTable()
+{
+  const uint32_t PacketWords = 0x40 / 2;
+  const uint32_t PacketMask = 0xffffffff * PacketWords;
+  const int ChunkSize = PacketWords * 4;
+  bool FirstChunkDouble = true;
+  int L, L2;
+  int SRAMIndex = 0;
+  int Status;
+
+  do
+  {
+    L2 = mCalTable.size() - SRAMIndex;
+
+    if (L2 > ChunkSize) L2 = ChunkSize;
+    L = 0;
+
+    Status = AWU_GenericBulkOut(mDevice,
+                                0,
+                                &(mCalTable.data()[SRAMIndex]),
+                                sizeof(mCalTable[0]) * L2, &L);
+
+    if (Status != 0)
+    {
+      aiousb_library_err_print("GenericBulkOut returned %d", Status);
+      return -EIO;
+    }
+
+    L = L / 2;
+    L = L & PacketMask;
+    SRAMIndex += L;
+    if (FirstChunkDouble)
+    {
+      FirstChunkDouble = false;
+      SRAMIndex = 0;
+    }
+  }while (SRAMIndex < 0x10000);
+
+  return 0;
+}
+
+int SetCalWorker::WriteCalToFile() //might get called twice
+{
+  if (mCalFileName == nullptr) return 0;
+  std::ofstream *OutStream;
+
+  if (mShouldAppend)
+  {
+    OutStream = new std::ofstream(mCalFileName, std::ios::binary | std::ios::app);
+  }
+  else
+  {
+    OutStream = new std::ofstream(mCalFileName, std::ios::binary);
+  }
+  mShouldAppend = true;
+
+  OutStream->write((const char *)mCalTable.data(), mCalTable.size() * sizeof(uint16_t));
+  OutStream->close();
+  delete OutStream;
+  return 0;
+
+}
+
+uint16_t SetCalWorker::GetHiRef()
+{
+  uint32_t DataSize, RetVal;
+  int status;
+
+  DataSize = sizeof(double);
+  status = GenericVendorRead(mDevice, 0xa2, 0x1df2, 0, DataSize, &RetVal);
+
+  if ((status) ||
+      (DataSize != sizeof(RetVal)) ||
+      (RetVal > 0xffff))
+  {
+    return 0.0;
+  }
+  else
+  {
+    return RetVal;
+  }
+}
+
+double SetCalWorker::ConfigureAndBulkAcquire(std::vector<uint8_t> Config)
+{
+  uint32_t L = Config.size();
+  uint16_t *AdBuff;
+  uint32_t AdBuffLength;
+  int Status;
+  uint8_t StartChannel, EndChannel;
+  uint32_t AdTot;
+
+  Status = ADC_SetConfig(mDevice, Config.data(), &L);
+
+  if (Status != 0)
+  {
+    aiousb_library_err_print("ADC_Setconfig returned %d", Status);
+    return 0.0;
+  }
+
+  Status = aiousb_get_scan_inner(mDevice, Config.data(), &L, &AdBuff, &AdBuffLength, &StartChannel, &EndChannel, 0);
+
+  if (Status != 0)
+  {
+    aiousb_library_err_print("adc_get_scan_inner returned %d", Status);
+    return 0.0;
+  }
+
+  AdTot = 0;
+
+  for (int i = 0 ; i < Config[0x13] ; i++) AdTot += AdBuff[i];
+  return (double)AdTot / (double)(1 + Config[0x13]);
+
+
+
+}
+
+int SetCalWorker::SetCal()
+{
+  uint32_t ConfigSize = mDevice->config_size;
+  std::vector<uint8_t> OldConfig(ConfigSize);
+  std::vector<uint8_t> NewConfig(ConfigSize);
+  ADC_GetConfig(mDevice, OldConfig.data(), &ConfigSize);
+  memset(NewConfig.data(), 0, ConfigSize);
+  double LoRef, HiRef, dRef, ThisRef, HiRead, LoRead, dRead;
+
+  if (!strcmp(":AUTO:", mCalFileName))
+  {
+    LoRef = LoRefRef;
+    HiRef = GetHiRef();
+    dRef = HiRef - LoRef;
+    for (size_t i = 0 ; i < mCalTable.size() ; i++)
+    {
+      mCalTable[i] = i;
+    }
+    LoadCalTable();
+    NewConfig[0x10] = 0x05;
+    NewConfig[0x00] = 0x01;
+
+    for (int i ; i < 2 ; i++)
+    {
+      NewConfig[0x11] = 0x04;
+      NewConfig[0x11] = 0x00;
+      NewConfig[0x11] = 0xff; //TODO: Implement the ChunkSize which depends on the
+                              //speed of the host controller
+      ThisRef = HiRef;
+
+      if ( 0 == i ) ThisRef = 0.5 * (ThisRef + 0x10000);
+
+      NewConfig[0x10] = 0x02; //cal low ref
+
+      HiRead = ConfigureAndBulkAcquire(NewConfig);
+
+      if (abs(HiRead - ThisRef) > 0x10000) return -EINVAL;
+
+      usleep(10000);
+
+      ThisRef = LoRef;
+
+      if (0 == i ) ThisRef = 0.5 * (ThisRef + 0x10000);
+
+      NewConfig[0x10] &=~0x02;
+      LoRead = ConfigureAndBulkAcquire(NewConfig);
+      if (abs(LoRead - ThisRef) > 0x100) return -EINVAL;
+
+      usleep(10000);
+
+      dRead = HiRead - LoRead;
+
+      for (int j = 0 ; j < 0x10000 ; j++)
+      {
+        double F, J;
+        F = (j - LoRead) / dRead;
+        F = LoRef + F * dRef;
+        if (0 == i) F = 0.5 * (F + 0x10000);
+        J = round(F);
+        if ( J <= 0)
+        {
+          J = 0;
+        }
+        else if (J >= 0xFFFF)
+        {
+          J = 0xFFFF;
+        }
+        mCalTable[j] = J;
+      }
+      LoadCalTable();
+
+      NewConfig[0x10] = 1;
+      NewConfig[0] = 1;
+
+      WriteCalToFile();
+
+    }
+  }
+  else if (!strcmp(":NORM:", mCalFileName))
+  {
+    LoRef = LoRefRef;
+    HiRef = GetHiRef();
+
+    if (0 == HiRef ) HiRef = HiRefRef;
+
+    dRef = HiRef - LoRef;
+    LoRead = 0x0042;
+    HiRead = 0xfe3f;
+    dRead = HiRead - LoRead;
+
+    for (int i = 0 ; i < 0x10000 ; i++)
+    {
+      double F, J;
+      F = (i - LoRead) / dRead;
+      F = LoRef +  F * dRef;
+      J = round(F);
+      if (J <= 0 ) J = 0;
+      else if (J >= 0xffff) J = 0xffff;
+      mCalTable[i] = J;
+    }
+
+    NewConfig[0x10] = 0x05;
+
+    for (int i = 0 ; i < 2 ; i++)
+    {
+      ADC_SetConfig(mDevice, NewConfig.data(), &ConfigSize);
+      LoadCalTable();
+      WriteCalToFile();
+      NewConfig[0x10] = 0x01;
+    }
+  }
+  else if (!(strcmp(":1TO1:", mCalFileName)) ||
+            !(strcmp(":NONE:", mCalFileName)))
+  {
+    for (size_t i = 0 ; i < mCalTable.size() ; i++)
+    {
+      mCalTable[i] = i;
+    }
+
+        NewConfig[0x10] = 0x05;
+
+    for (int i = 0 ; i < 2 ; i++)
+    {
+      ADC_SetConfig(mDevice, NewConfig.data(), &ConfigSize);
+      LoadCalTable();
+      WriteCalToFile();
+      NewConfig[0x10] = 0x01;
+    }
+  }
+  else if (mCalFileName[0] == ':') return -EINVAL;
+  else
+  {
+   std::ifstream  CalStream(mCalFileName, std::ios::binary | std::ios::in);
+   CalStream.seekg(std::ios::end);
+   if (CalStream.tellg() >= 0x20000)
+   {
+     CalStream.seekg(0);
+     NewConfig[0x10] = 0x05;
+     NewConfig[0x00] = 0x01;
+
+     for (int i = 0 ; i < 2 ; i++)
+     {
+       ADC_SetConfig(mDevice, NewConfig.data(), &ConfigSize);
+       CalStream.read((char *)mCalTable.data(), mCalTable.size() * sizeof(uint16_t));
+       LoadCalTable();
+       WriteCalToFile();
+       NewConfig[0x10] = 0x01;
+       NewConfig[0x00] = 0x00;
+     }
+   }
+   else if (CalStream.tellg() > 0x10000)
+   {
+     CalStream.seekg(0);
+     CalStream.read((char *)mCalTable.data(), mCalTable.size() * sizeof(uint16_t));
+     LoadCalTable();
+     WriteCalToFile();
+   }
+   CalStream.close();
+
+  }
+  return -1;
+}
+
+int ADC_SetCal(aiousb_device_handle device, char *CalFileName)
+{
+  return -1;
 }
 
 int DAC_SetBoardRange (aiousb_device_handle device, uint32_t range_code)
