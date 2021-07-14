@@ -1,12 +1,12 @@
-
-#include "aiousb.h""
-
+#include "aiousb.h"
 #include "AiousbSamples.inc"
 
 int main (int argc, char **argv)
 {
   int Status;
   AIOUSB::aiousb_device_handle Device;
+
+  AIOUSB::AiousbInit();
 
   Status = SampleGetDeviceHandle(argc, argv, &Device);
 
@@ -16,5 +16,5 @@ int main (int argc, char **argv)
     exit(-1);
   }
 
-  //AIOUSB::ADC_SetCal
+  AIOUSB::ADC_SetCal(Device, ":AUTO:");
 }

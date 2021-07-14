@@ -681,7 +681,7 @@ static int ioctl_ACCESIO_USB_CONTROL_XFER (struct accesio_usb_device_info *dev, 
 void accesio_urb_complete(struct urb *urb)
 {
     struct completion *completion = (struct completion *)urb->context;
-    aio_driver_dev_print("Reached competion callback");
+    aio_driver_dev_print("Reached completion callback");
     complete(completion);
 }
 
