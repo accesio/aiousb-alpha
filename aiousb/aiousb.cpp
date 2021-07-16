@@ -3172,7 +3172,8 @@ double SetCalWorker::ConfigureAndBulkAcquire(std::vector<uint8_t> &Config)
   AdTot = 0;
 
   for (int i = 0 ; i < Config[0x13] ; i++) AdTot += AdBuff[i];
-  return (double)AdTot / (double)(1 + Config[0x13]);
+  return (double)AdTot / (double)(Config[0x13]); //TODO: Figure out why we are
+                      //dividing by one less than we should to get right answer
 
 
 
@@ -3189,6 +3190,7 @@ int SetCalWorker::SetCal()
   int Status;
 
   ADC_GetConfig(mDevice, OldConfig.data(), &ConfigSize);
+  std::fill(NewConfig.begin(), NewConfig.end(), 0);
 
 
   Status = GenericVendorRead(mDevice,
@@ -3224,7 +3226,7 @@ int SetCalWorker::SetCal()
 
       NewConfig[0x11] = 0x04;
       NewConfig[0x12] = 0x00;
-      NewConfig[0x13] = std::min(0xff, ChunkSize);
+      NewConfig[0x13] = std::min(0xff, ChunkSize - 1);
                               //speed of the host controller
       ThisRef = HiRef;
 
