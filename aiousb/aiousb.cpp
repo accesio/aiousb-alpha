@@ -3105,16 +3105,16 @@ int SetCalWorker::LoadCalTable()
 
 int SetCalWorker::WriteCalToFile() //might get called twice
 {
-  if (mCalFileName == nullptr) return 0;
+  if (mOutFileName == nullptr) return 0;
   std::ofstream *OutStream;
 
   if (mShouldAppend)
   {
-    OutStream = new std::ofstream(mCalFileName, std::ios::binary | std::ios::app);
+    OutStream = new std::ofstream(mOutFileName, std::ios::binary | std::ios::app);
   }
   else
   {
-    OutStream = new std::ofstream(mCalFileName, std::ios::binary);
+    OutStream = new std::ofstream(mOutFileName, std::ios::binary);
   }
   mShouldAppend = true;
 
@@ -3366,7 +3366,13 @@ int SetCalWorker::SetCal()
 
 int ADC_SetCal(aiousb_device_handle device, const char *CalFileName)
 {
-  SetCalWorker Worker(device, CalFileName, nullptr);
+  return ADC_SetCalAndSave(device, CalFileName, nullptr);
+}
+
+int ADC_SetCalAndSave(aiousb_device_handle device, const char *CalFileName,
+                  const char *OutFileName)
+{
+  SetCalWorker Worker(device, CalFileName, OutFileName);
   return Worker.SetCal();
 }
 
@@ -3822,6 +3828,20 @@ int ADC_Range1(unsigned long device_index, uint32_t adc_channel,
                       adc_channel,
                       gain_code,
                       b_differential);
+}
+
+int ADC_SetCal(unsigned int device_index, const char *CalFileName)
+{
+  return ADC_SetCal(aiousb_handle_by_index_private(device_index),
+                      CalFileName);
+}
+
+int ADC_SetCalAndSave(unsigned int device_index, const char *CalFileName,
+                  const char *OutFileName)
+{
+  return ADC_SetCalAndSave(aiousb_handle_by_index_private(device_index),
+                        CalFileName,
+                        OutFileName);
 }
 
 

@@ -157,6 +157,9 @@ int ADC_Range1(aiousb_device_handle device, uint32_t adc_channel,
 
 int ADC_SetCal(aiousb_device_handle device, const char *CalFileName);
 
+int ADC_SetCalAndSave(aiousb_device_handle device, const char *CalFileName,
+                  const char *OutFileName);
+
 int ADC_SetOversample(aiousb_device_handle device, uint8_t oversample);
 
 int ADC_SetConfig(aiousb_device_handle device, uint8_t *config_buff,
@@ -301,6 +304,9 @@ int ADC_Range1(unsigned long device_index, uint32_t adc_channel,
                 uint8_t gain_code, uint32_t b_differential);
 
 int ADC_SetCal(unsigned int device_index, const char *CalFileName);
+
+int ADC_SetCalAndSave(unsigned int device_index, const char *CalFileName,
+                  const char *OutFileName);
 
 int ADC_SetOversample(unsigned long device_index, uint8_t oversample);
 
