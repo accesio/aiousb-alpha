@@ -43,6 +43,10 @@ int main (int argc, char **argv)
 
   GetAndPrintScan();
 
+    AIOUSB::ADC_SetCal(Device, ":NORM:");
+
+  GetAndPrintScan();
+
   AIOUSB::ADC_SetCalAndSave(Device, ":AUTO:", "outtest.bin");
   GetAndPrintScan();
 }
