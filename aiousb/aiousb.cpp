@@ -3006,9 +3006,6 @@ int ADC_Range1(aiousb_device_handle device, uint32_t adc_channel,
 class SetCalWorker
 {
   public:
-    const uint32_t PacketWords = 0x40 / 2;
-    const uint32_t PacketMask = 0xffffffff * PacketWords;
-    const int ChunkSize = PacketWords * 4;
     //CalFileName and OutFileName need to be valid for the life of the object.
     SetCalWorker(aiousb_device_handle Device, const char *CalFileName, const char *OutFileName)
     {
@@ -3016,6 +3013,19 @@ class SetCalWorker
       mCalFileName = CalFileName;
       mShouldAppend = false;
       mOutFileName = OutFileName;
+
+      uint32_t PacketWords;
+      if (ioctl(mDevice->fd, ACCESIO_USB_GET_PORT_SPEED) <= 2) //USB_SPEED_FULL
+      {
+        PacketWords = 0x40 / 2;
+      }
+      else
+      {
+        PacketWords = 0x200 / 2;
+      }
+      mPacketsMask = 0xFFFFFFFF * PacketWords;
+      mChunkSize = PacketWords * 4;
+
     }
 
     int SetCal();
@@ -3027,6 +3037,8 @@ class SetCalWorker
     const char *mOutFileName;
     std::array<uint16_t, 0x10000> mCalTable;
     bool mShouldAppend;
+    int mChunkSize;
+    uint32_t mPacketsMask;
 
     double  LoRefRef = 0 * 6553.6;
     double  HiRefRef = 9.9339 * 6553.6;
@@ -3063,11 +3075,11 @@ int SetCalWorker::LoadCalTable()
   {
     L2 = mCalTable.size() - SRAMIndex;
 
-    if (L2 > ChunkSize) L2 = ChunkSize;
-    if (L2 < ChunkSize)
+    if (L2 > mChunkSize) L2 = mChunkSize;
+    if (L2 < mChunkSize)
     {
-      L2 = ChunkSize;
-      SRAMIndex = 0x10000 - ChunkSize/2;
+      L2 = mChunkSize;
+      SRAMIndex = 0x10000 - mChunkSize/2;
     }
     L = L2;
 
@@ -3091,7 +3103,7 @@ int SetCalWorker::LoadCalTable()
     }
 
     L = L / 2;
-    L = L & PacketMask;
+    L = L & mPacketsMask;
     SRAMIndex += L;
     if (FirstChunkDouble)
     {
@@ -3226,8 +3238,8 @@ int SetCalWorker::SetCal()
 
       NewConfig[0x11] = 0x04;
       NewConfig[0x12] = 0x00;
-      NewConfig[0x13] = std::min(0xff, ChunkSize - 1);
-                              //speed of the host controller
+      NewConfig[0x13] = std::min(0xff, mChunkSize - 1);
+                              // of the host controller
       ThisRef = HiRef;
 
       if ( 0 == i ) ThisRef = 0.5 * (ThisRef + 0x10000);

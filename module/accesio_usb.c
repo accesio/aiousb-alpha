@@ -807,6 +807,10 @@ static int accesio_usb_ioctl_internal(struct file* filp, unsigned int cmd, unsig
                 status = usb_unlink_urb(dev->urb);
             }
             break;
+        case ACCESIO_USB_GET_PORT_SPEED:
+            aio_driver_debug_print("ACCESIO_USB_GET_PORT_SPEED");
+            status = dev->udev->speed;
+            break;
         default:
             aio_driver_err_print("invalid ioctl cmd");
             status = -EINVAL;
