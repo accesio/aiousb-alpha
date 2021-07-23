@@ -127,6 +127,7 @@ struct accesio_usb_device_info {
     struct urb *urb;
     struct completion urb_completion;
     void *dma_capable_buffer;
+    bool null_cleanup;
 } accesio_usb_device_info;
 
 
@@ -785,6 +786,13 @@ static int accesio_usb_ioctl_internal(struct file* filp, unsigned int cmd, unsig
     if ((!dev) || (!dev->interface))
     {
         aio_driver_err_print("dev or interface is NULL");
+        if (!dev->null_cleanup)
+        {
+            status = usb_unlink_urb(dev->urb);
+            dev->null_cleanup = true;
+            aio_driver_err_print("Attempt to cleanup urb");
+        }
+
         status = -ENOSYS;
         goto err_out;
     }
