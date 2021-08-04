@@ -3239,7 +3239,6 @@ int SetCalWorker::SetCal()
       NewConfig[0x11] = 0x04;
       NewConfig[0x12] = 0x00;
       NewConfig[0x13] = std::min(0xff, mChunkSize - 1);
-                              // of the host controller
       ThisRef = HiRef;
 
       if ( 0 == i ) ThisRef = 0.5 * (ThisRef + 0x10000);

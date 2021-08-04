@@ -3,6 +3,8 @@
 
 #include <array>
 
+#include <unistd.h>
+
 #define START_CHANNEL 0
 #define END_CHANNEL 15
 
@@ -23,6 +25,51 @@ void GetAndPrintScan()
   {
     printf("%d: %f\n", i, Voltages[i]);
   }
+
+}
+
+void DioTest()
+{
+  int Status;
+  uint32_t DioBytes;
+
+  Status = AIOUSB::QueryDeviceInfo(Device, nullptr, nullptr, nullptr, &DioBytes, nullptr);
+
+  printf("%s: Status = %d, DioBytes = %d\n", __FUNCTION__, Status, DioBytes);
+
+  std::array<uint8_t, 8> DioData;
+  std::array<uint8_t, 8> OutMask;
+
+  std::fill(OutMask.begin(), OutMask.end(), 0xf);
+
+
+  AIOUSB::DIO_Configure(Device, 0, OutMask.data(), DioData.data());
+
+  printf("Setting DIO0 high\n");
+  Status = AIOUSB::DIO_Write1(Device, 0, 1);
+  sleep(3);
+
+  printf("Setting DIO0 low\n");
+  Status = AIOUSB::DIO_Write1(Device, 0, 0);
+  sleep(3);
+
+  printf("Setting DIO0-7 high\n");
+  AIOUSB::DIO_Write8(Device, 0, 0xf);
+  sleep(8);
+
+  printf("Setting DIO0-7 low\n");
+  AIOUSB::DIO_Write8(Device, 0, 0);
+  sleep(8);
+
+  std::fill(DioData.begin(), DioData.end(), 0xff);
+  printf("setting DIO0-15 high\n");
+  AIOUSB::DIO_WriteAll(Device, DioData.data());
+  sleep(8);
+
+  std::fill(DioData.begin(), DioData.end(), 0);
+  printf("setting DIO0-15 low\n");
+  AIOUSB::DIO_WriteAll(Device, DioData.data());
+  sleep(8);
 
 }
 
@@ -49,4 +96,6 @@ int main (int argc, char **argv)
 
   AIOUSB::ADC_SetCalAndSave(Device, ":AUTO:", "outtest.bin");
   GetAndPrintScan();
+
+  DioTest();
 }
