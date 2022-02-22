@@ -2,6 +2,8 @@
 #include "timespec-util.h"
 
 #include "aiousb.h"
+#include "AiousbSamples.inc"
+
 
 #define err_printf(fmt, ...) \
         do { printf ("%s:%d:%s(): " fmt "\n", __FILE__, \
@@ -9,13 +11,13 @@
 
 
 
-AIOUSB::aiousb_device_handle device;
+AIOUSB::aiousb_device_handle Device;
 
 #define START_CHANNEL 0
 #define END_CHANNEL 15
 #define LOOP_COUNT 10000
 
-int main (int arg, char **argv)
+int main (int argc, char **argv)
 {
   double voltages[64];
   int status;
@@ -25,7 +27,7 @@ int main (int arg, char **argv)
 
   err_printf("status = %d", status);
 
-  status = AIOUSB::DeviceHandleByPath(argv[1], &device);
+  status = SampleGetDeviceHandle(argc, argv, &Device);
 
   err_printf("status = %d", status);
 
@@ -34,16 +36,16 @@ int main (int arg, char **argv)
       err_printf("Unable to open device");
     }
 
-  status = AIOUSB::ADC_SetScanLimits(device, START_CHANNEL, END_CHANNEL);
+  // status = AIOUSB::ADC_SetScanLimits(Device, START_CHANNEL, END_CHANNEL);
 
-  err_printf("status = %d", status);
+  // err_printf("status = %d", status);
 
-  status = AIOUSB::ADC_SetOversample(device, 5);
+  // status = AIOUSB::ADC_SetOversample(Device, 5);
 
-  err_printf("status = %d", status);
+  // err_printf("status = %d", status);
 
 
-  status = AIOUSB::ADC_GetScanV(device, voltages);
+  status = AIOUSB::ADC_GetScanV(Device, voltages);
 
   err_printf("status = %d", status);
 
@@ -54,10 +56,10 @@ int main (int arg, char **argv)
 
   clock_gettime(CLOCK_MONOTONIC, &begin);
 
-  for (int i = 0; i < LOOP_COUNT ; i++)
-  {
-    status = ADC_GetScanV(device, voltages);
-  }
+  // for (int i = 0; i < LOOP_COUNT ; i++)
+  // {
+  //   status = ADC_GetScanV(Device, voltages);
+  // }
 
   clock_gettime(CLOCK_MONOTONIC, &end);
 
