@@ -44,6 +44,9 @@ int main (int argc, char **argv)
 
   // err_printf("status = %d", status);
 
+  status = AIOUSB::DAC_SetBoardRange(Device, 0); // used to unsleep the ADC reference on USB-AO16-16A and relateds to the adc-getscanv and now it works
+  err_printf("status = %d", status);
+
 
   status = AIOUSB::ADC_GetScanV(Device, voltages);
 
