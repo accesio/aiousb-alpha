@@ -1,3 +1,4 @@
+# aiousb-alpha is deprecated. Please see https://github.com/accesio/aiousb-linux
 # aiousb
 
 aiousb is the Linux implementation of the [ACCES I/O USB API](https://accesio.com/MANUALS/USB%20Software%20Reference%20Manual.html)
